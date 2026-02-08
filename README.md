@@ -1,4 +1,5 @@
 # VELOC: VEry-Low Overhead Checkpointing System
+*This repository is a fork from [ECP-VeloC/VELOC](https://github.com/ECP-VeloC/VELOC) with custom additions for offloading*
 
 VELOC is a multi-level checkpoint/restart runtime that delivers 
 high performance and scalability for complex heterogeneous storage 
