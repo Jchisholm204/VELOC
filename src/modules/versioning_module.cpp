@@ -1,37 +1,42 @@
 #include "versioning_module.hpp"
+
 #include "common/file_util.hpp"
 
 #include <unistd.h>
 
-//#define __DEBUG
+// #define __DEBUG
 #include "common/debug.hpp"
 
-static void scratch_version_set(const std::string &p, const char *cname, int req_id, std::set<int> &result) {
-    parse_dir(p, cname,
-              [&](const std::string &f, int id, int v) {
-                  if (id == command_t::ID_EC || id == req_id)
-                      result.insert(v);
-              });
+static void scratch_version_set(const std::string& p, const char* cname,
+                                int req_id, std::set<int>& result) {
+    parse_dir(p, cname, [&](const std::string& f, int id, int v) {
+        if (id == command_t::ID_EC || id == req_id)
+            result.insert(v);
+    });
 }
 
-versioning_module_t::versioning_module_t(const config_t &c) : cfg(c) {
+versioning_module_t::versioning_module_t(const config_t& c) : cfg(c) {
     if (cfg.storage() && !cfg.get_optional("max_versions", max_versions)) {
-	max_versions = 0;
-        INFO("persisting last " << max_versions << " checkpoints to " << cfg.get("persistent") << " (0 means all), change using 'max_versions'");
+        max_versions = 0;
+        INFO("persisting last "
+             << max_versions << " checkpoints to " << cfg.get("persistent")
+             << " (0 means all), change using 'max_versions'");
     }
 
     if (!cfg.get_optional("scratch_versions", scratch_versions)) {
         scratch_versions = 0;
-        INFO("caching last " << scratch_versions << " checkpoints to " << cfg.get("scratch") << " (0 means all), change using 'scratch_versions'");
+        INFO("caching last "
+             << scratch_versions << " checkpoints to " << cfg.get("scratch")
+             << " (0 means all), change using 'scratch_versions'");
     }
     cfg.get_optional("meta", meta);
 }
 
-int versioning_module_t::process_command(const command_t &c) {
+int versioning_module_t::process_command(const command_t& c) {
     std::unique_lock<std::mutex> lock(history_lock);
-    auto &ph = persistent_history[c.name][c.unique_id];
-    auto &sh = scratch_history[c.name][c.unique_id];
-    std::set<int, std::greater<int> > versions;
+    auto& ph = persistent_history[c.name][c.unique_id];
+    auto& sh = scratch_history[c.name][c.unique_id];
+    std::set<int, std::greater<int>> versions;
 
     switch (c.command) {
     case command_t::TEST:
@@ -56,7 +61,7 @@ int versioning_module_t::process_command(const command_t &c) {
         if (cfg.storage() && max_versions > 0) {
             ph.insert(c.version);
             auto it = ph.begin();
-            while (it != ph.end() && ph.size() > (unsigned int)max_versions) {
+            while (it != ph.end() && ph.size() > (unsigned int) max_versions) {
                 command_t old = c;
                 old.version = *it;
                 cfg.storage()->remove(old);
@@ -69,9 +74,10 @@ int versioning_module_t::process_command(const command_t &c) {
         if (scratch_versions > 0) {
             sh.insert(c.version);
             auto it = sh.begin();
-            while (it != sh.end() && sh.size() > (unsigned int)scratch_versions) {
+            while (it != sh.end() &&
+                   sh.size() > (unsigned int) scratch_versions) {
                 parse_dir(cfg.get("scratch"), c.name,
-                          [&](const std::string &f, int, int v) {
+                          [&](const std::string& f, int, int v) {
                               if (v == *it)
                                   remove(f.c_str());
                           });

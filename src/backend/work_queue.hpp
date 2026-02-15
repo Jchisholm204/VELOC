@@ -6,6 +6,6 @@
 
 #include <mpi.h>
 
-void start_main_loop(const config_t &cfg, MPI_Comm comm);
+void start_main_loop(const config_t& cfg, MPI_Comm comm);
 
 #endif

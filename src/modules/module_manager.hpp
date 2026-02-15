@@ -2,38 +2,35 @@
 #define __MODULE_MANAGER_HPP
 
 #include "common/command.hpp"
-#include "common/status.hpp"
 #include "common/config.hpp"
-#include "modules/client_watchdog.hpp"
+#include "common/status.hpp"
+#include "modules/chksum_module.hpp"
 #include "modules/client_aggregator.hpp"
+#include "modules/client_watchdog.hpp"
 #include "modules/ec_module.hpp"
 #include "modules/transfer_module.hpp"
-#include "modules/chksum_module.hpp"
 #include "modules/versioning_module.hpp"
 
 #include <functional>
+#include <mpi.h>
 #include <vector>
 
-#include <mpi.h>
-
 class module_manager_t {
-    typedef std::function<int (const command_t &)> method_t;
+    typedef std::function<int(const command_t&)> method_t;
     std::vector<method_t> modules;
-    client_watchdog_t *watchdog = NULL;
-    transfer_module_t *transfer = NULL;
-    client_aggregator_t *ec_agg = NULL;
-    ec_module_t *redset = NULL;
-    chksum_module_t *chksum = NULL;
-    versioning_module_t *versioning = NULL;
+    client_watchdog_t* watchdog = NULL;
+    transfer_module_t* transfer = NULL;
+    client_aggregator_t* ec_agg = NULL;
+    ec_module_t* redset = NULL;
+    chksum_module_t* chksum = NULL;
+    versioning_module_t* versioning = NULL;
 
-public:
+  public:
     module_manager_t();
     ~module_manager_t();
-    void add_default(const config_t &cfg, MPI_Comm comm = MPI_COMM_NULL);
-    void add_module(const method_t &m) {
-	modules.push_back(m);
-    }
-    int notify_command(const command_t &c);
+    void add_default(const config_t& cfg, MPI_Comm comm = MPI_COMM_NULL);
+    void add_module(const method_t& m) { modules.push_back(m); }
+    int notify_command(const command_t& c);
 };
 
 #endif // __MODULE_MANAGER_HPP

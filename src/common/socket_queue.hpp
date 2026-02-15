@@ -1,29 +1,29 @@
 #ifndef __SOCKET_QUEUE_HPP
 #define __SOCKET_QUEUE_HPP
 
-#include "status.hpp"
 #include "command.hpp"
 #include "file_util.hpp"
+#include "status.hpp"
 
-#include <unordered_map>
-#include <functional>
-#include <mutex>
 #include <condition_variable>
-#include <thread>
+#include <functional>
 #include <list>
+#include <mutex>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <poll.h>
+#include <thread>
 #include <unistd.h>
+#include <unordered_map>
 
-//#define __DEBUG
+// #define __DEBUG
 #include "common/debug.hpp"
 
 namespace socket_queue {
 
 using namespace std::placeholders;
 
-typedef std::function<void (int)> completion_t;
+typedef std::function<void(int)> completion_t;
 
 static const std::string CHANNEL = "/dev/shm/veloc-socket-" + unique_suffix();
 static const int MAX_CLIENTS = 256;
@@ -41,13 +41,14 @@ struct client_queue_t {
 };
 
 static inline void fatal_comm() {
-    FATAL("cannot interact with unix socket: " << CHANNEL << "; error = " << std::strerror(errno));
+    FATAL("cannot interact with unix socket: " << CHANNEL << "; error = "
+                                               << std::strerror(errno));
 }
 
-template<typename T> class comm_client_t {
+template <typename T> class comm_client_t {
     int id, fd;
 
-public:
+  public:
     comm_client_t(int _id) : id(_id) {
         sockaddr_un addr;
         if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
@@ -55,7 +56,7 @@ public:
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
         std::strcpy(addr.sun_path, CHANNEL.c_str());
-        if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1)
+        if (connect(fd, (struct sockaddr*) &addr, sizeof(addr)) == -1)
             fatal_comm();
     }
 
@@ -70,18 +71,18 @@ public:
     }
 
     bool check_completion() {
-	ERROR("not yet implemented, use ipc_queue instead");
-	return false;
+        ERROR("not yet implemented, use ipc_queue instead");
+        return false;
     }
 
-    void enqueue(const command_t &c) {
+    void enqueue(const command_t& c) {
         if (write(fd, &c, sizeof(c)) != sizeof(c))
             fatal_comm();
-	DBG("enqueued element " << c);
+        DBG("enqueued element " << c);
     }
 };
 
-template<typename T> class comm_backend_t {
+template <typename T> class comm_backend_t {
     typedef client_queue_t container_t;
     typedef typename container_t::list_t::iterator list_iterator_t;
     std::unordered_map<int, container_t> client_map;
@@ -89,33 +90,34 @@ template<typename T> class comm_backend_t {
     std::condition_variable map_cond;
     int fd;
 
-    container_t *find_non_empty_pending() {
+    container_t* find_non_empty_pending() {
         // find first client with pending requests
-	for (auto it = client_map.begin(); it != client_map.end(); ++it) {
-	    container_t *result = &it->second;
-	    if (!result->pending.empty())
-		return result;
-	}
-	return NULL;
+        for (auto it = client_map.begin(); it != client_map.end(); ++it) {
+            container_t* result = &it->second;
+            if (!result->pending.empty())
+                return result;
+        }
+        return NULL;
     }
 
-    void set_completion(container_t *q, const list_iterator_t &it, int status) {
-	// delete the element from the progress queue and notify the producer
+    void set_completion(container_t* q, const list_iterator_t& it, int status) {
+        // delete the element from the progress queue and notify the producer
         std::unique_lock<std::mutex> lock(map_mutex);
-        DBG("completed element " << *it << ", status: " << status << ", waiting = " << q->waiting);
-	q->progress.erase(it);
-	if (q->status < 0 || status < 0)
-	    q->status = std::min(q->status, status);
-	else
-	    q->status = std::max(q->status, status);
+        DBG("completed element " << *it << ", status: " << status
+                                 << ", waiting = " << q->waiting);
+        q->progress.erase(it);
+        if (q->status < 0 || status < 0)
+            q->status = std::min(q->status, status);
+        else
+            q->status = std::max(q->status, status);
         send_wait_reply(q);
     }
 
     // safety check: must be called with unique_lock acquired
-    void send_wait_reply(container_t *q) {
+    void send_wait_reply(container_t* q) {
         if (q->waiting && q->pending.empty() && q->progress.empty()) {
             int reply = q->status;
-            if(q->reset_status)
+            if (q->reset_status)
                 q->status = VELOC_SUCCESS;
             q->waiting = false;
             if (write(q->fd, &reply, sizeof(reply)) != sizeof(reply))
@@ -123,9 +125,9 @@ template<typename T> class comm_backend_t {
         }
     }
 
-    void enqueue(const command_t &e, int sock) {
+    void enqueue(const command_t& e, int sock) {
         std::unique_lock<std::mutex> lock(map_mutex);
-        container_t *q = &client_map[sock];
+        container_t* q = &client_map[sock];
         q->fd = sock;
         if (e.command == command_t::STATUS) {
             q->waiting = true;
@@ -167,7 +169,9 @@ template<typename T> class comm_backend_t {
                 while (i < fds_size && fds[i].fd != -1)
                     i++;
                 if (i > MAX_CLIENTS)
-                    FATAL("maximum number of clients (" << MAX_CLIENTS << ") exceeded for unix socket: " << CHANNEL);
+                    FATAL("maximum number of clients ("
+                          << MAX_CLIENTS
+                          << ") exceeded for unix socket: " << CHANNEL);
                 fds[i].fd = client;
                 fds[i].events = POLLIN;
                 fds_size = std::max(fds_size, i + 1);
@@ -183,7 +187,7 @@ template<typename T> class comm_backend_t {
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
         std::strcpy(addr.sun_path, CHANNEL.c_str());
-        if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) == -1)
+        if (bind(fd, (struct sockaddr*) &addr, sizeof(addr)) == -1)
             fatal_comm();
         if (listen(fd, MAX_CLIENTS) == -1)
             fatal_comm();
@@ -191,21 +195,23 @@ template<typename T> class comm_backend_t {
         t.detach();
     }
 
-    completion_t dequeue_any(T &e) {
-	// wait until at least one pending queue has at least one element
-	container_t *first_found;
+    completion_t dequeue_any(T& e) {
+        // wait until at least one pending queue has at least one element
+        container_t* first_found;
         std::unique_lock<std::mutex> lock(map_mutex);
-	while ((first_found = find_non_empty_pending()) == NULL)
-	    map_cond.wait(lock);
-	// remove the head of the pending queue and move it to the progress queue
-	e = first_found->pending.front();
-	first_found->pending.pop_front();
-	first_found->progress.push_back(e);
-	DBG("dequeued element " << e);
-	return std::bind(&comm_backend_t<T>::set_completion, this, first_found, std::prev(first_found->progress.end()), _1);
+        while ((first_found = find_non_empty_pending()) == NULL)
+            map_cond.wait(lock);
+        // remove the head of the pending queue and move it to the progress
+        // queue
+        e = first_found->pending.front();
+        first_found->pending.pop_front();
+        first_found->progress.push_back(e);
+        DBG("dequeued element " << e);
+        return std::bind(&comm_backend_t<T>::set_completion, this, first_found,
+                         std::prev(first_found->progress.end()), _1);
     }
 };
 
-};
+}; // namespace socket_queue
 
 #endif // __SOCKET_QUEUE_HPP
